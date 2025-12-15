@@ -16,7 +16,7 @@ const DEFAULT_GEMINI_KEY =
 const VIDEO_MODELS: Record<ProviderId, string | undefined> = {
   nano_banana_pro: undefined,
   veo: "veo_3_1",
-  sora: "sora-2-hd",
+  sora: "sora2",
 };
 
 const VIDEO_DURATION_OPTIONS: Record<ProviderId, number[] | undefined> = {
