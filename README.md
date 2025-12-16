@@ -42,3 +42,4 @@
 - 运行 `pnpm dev` → 打开 `http://localhost:3000`，在「设置」中填入远端 API 的 Base URL / Key。
 - 切到「图片」：输入提示词即可调用 Gemini REST，支持连续修图（不上传新图时会复用最近一张）。
 - 切到「Veo / Sora」：输入提示词即可创建视频任务，前端会轮询 `/v1/videos/:id` 并展示 URL/base64 结果。
+- 想在其他项目复用 Veo/Sora 调用方式，可参考 `docs/veo-sora.md`。
