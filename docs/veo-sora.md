@@ -51,6 +51,16 @@ const done = !["queued","pending","processing","running","generating","in_progre
   - Base64：`video_base64` / `base64` / `content`（也会查 nested `video` 对象）。
 - 若 `status` 为 `failed/error/cancelled`，直接返回错误文案。
 
+## Sora Remix（POST `/v1/videos/:id/remix`）
+本项目对 Sora 2 增加了 Remix 入口，API 兼容示例：
+```bash
+curl -X POST "$BASE/v1/videos/<job_id>/remix" \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"把视频里的小猫改成小狗"}'
+```
+前端调用在 `createSoraRemixJob` 中实现，成功会返回新的 `id`，之后继续用 `getVideoJobStatus` 轮询。
+
 ## 快速复用
 1) 复制 `api.ts` 中与视频相关的函数：`ensureVideoConfig`、`clampDuration`、`createVideoJob`、`getVideoJobStatus`、`buildVideoPartsFromPayload`。  
 2) 在 UI 侧收集 `prompt`、`model`、`seconds`、`ratio`、`size`、参考图 base64，并传入 `createVideoJob`。  

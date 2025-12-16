@@ -1,15 +1,24 @@
 
-import React, { useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { Download } from 'lucide-react';
-import type { Message } from './types';
+import React, { useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import { Download, Wand2 } from "lucide-react";
+import type { Message, ProviderId } from "./types";
 
 interface MessageListProps {
   messages: Message[];
   isLoading: boolean;
+  provider: ProviderId;
+  onRemix?: (jobId: string) => void;
+  remixingJobId?: string | null;
 }
 
-export const MessageList: React.FC<MessageListProps> = ({ messages, isLoading }) => {
+export const MessageList: React.FC<MessageListProps> = ({
+  messages,
+  isLoading,
+  provider,
+  onRemix,
+  remixingJobId,
+}) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,34 +49,34 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, isLoading })
       {messages.map((msg) => (
         <div
           key={msg.id}
-          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
         >
           <div
             className={`max-w-[85%] rounded-2xl p-5 ${
-              msg.role === 'user'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-neutral-800 text-neutral-200 shadow-sm border border-neutral-700'
+              msg.role === "user"
+                ? "bg-blue-600 text-white shadow-md"
+                : "bg-neutral-800 text-neutral-200 shadow-sm border border-neutral-700"
             }`}
           >
             <div className="space-y-4">
               {msg.parts.map((part, index) => {
-                if (part.type === 'text') {
+                if (part.type === "text") {
                   return (
                     <div key={index} className="prose prose-invert prose-sm max-w-none">
                       <ReactMarkdown>{part.content}</ReactMarkdown>
                     </div>
                   );
-                } else if (part.type === 'image') {
+                } else if (part.type === "image") {
                   return (
                     <div key={index} className="relative group rounded-xl overflow-hidden bg-neutral-950 border border-neutral-700">
                       <img
-                        src={`data:${part.mimeType || 'image/png'};base64,${part.content}`}
+                        src={`data:${part.mimeType || "image/png"};base64,${part.content}`}
                         alt="生成内容"
                         className="w-full h-auto max-h-[512px] object-contain"
                       />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <button
-                          onClick={() => handleDownload(part.content, part.mimeType || 'image/png')}
+                          onClick={() => handleDownload(part.content, part.mimeType || "image/png")}
                           className="p-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-colors"
                           title="下载图片"
                         >
@@ -76,10 +85,13 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, isLoading })
                       </div>
                     </div>
                   );
-                } else if (part.type === 'video') {
-                  const mimeType = part.mimeType || 'video/mp4';
-                  const isUrl = part.source === 'url' || part.content.startsWith('http') || part.content.startsWith('gs://');
-                  const isPlayableUrl = part.content.startsWith('http');
+                } else if (part.type === "video") {
+                  const mimeType = part.mimeType || "video/mp4";
+                  const isUrl =
+                    part.source === "url" ||
+                    part.content.startsWith("http") ||
+                    part.content.startsWith("gs://");
+                  const isPlayableUrl = part.content.startsWith("http");
                   const src = isUrl ? part.content : `data:${mimeType};base64,${part.content}`;
 
                   return (
@@ -119,7 +131,21 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, isLoading })
               })}
             </div>
 
-            {/* 费用信息 */}
+            {provider === "sora" &&
+              onRemix &&
+              msg.jobId &&
+              msg.parts.some((p) => p.type === "video") && (
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={() => onRemix(msg.jobId!)}
+                    disabled={isLoading || remixingJobId === msg.jobId}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm transition-colors disabled:opacity-50 disabled:hover:bg-purple-600"
+                  >
+                    <Wand2 className="w-4 h-4" />
+                    {remixingJobId === msg.jobId ? "Remix 中..." : "Remix 生成"}
+                  </button>
+                </div>
+              )}
           </div>
         </div>
       ))}

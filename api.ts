@@ -328,6 +328,10 @@ export interface VideoJobStatus {
   progress?: number;
 }
 
+export interface RemixJobCreated {
+  jobId: string;
+}
+
 export const getHealth = async () => {
   return {
     image: { enabled: true },
@@ -468,6 +472,40 @@ export const createVideoJob = async (
   const data = await res.json().catch(() => ({}));
   if (!data?.id) {
     throw new Error("视频任务创建成功，但未返回 id。");
+  }
+  return { jobId: data.id };
+};
+
+export const createSoraRemixJob = async (
+  jobId: string,
+  prompt: string,
+  clientSettings: ClientSettings,
+): Promise<RemixJobCreated> => {
+  const { baseUrl, apiKey } = ensureVideoConfig(clientSettings, "sora");
+  if (!prompt.trim()) {
+    throw new Error("请填写 Remix 提示词。");
+  }
+
+  const res = await fetch(
+    `${baseUrl}/v1/videos/${encodeURIComponent(jobId)}/remix`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt }),
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`创建 Remix 任务失败：${res.status} - ${text}`);
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!data?.id) {
+    throw new Error("Remix 任务创建成功，但未返回 id。");
   }
   return { jobId: data.id };
 };
