@@ -47,6 +47,13 @@ const VIDEO_PENDING_STATES = [
 
 const trimBaseUrl = (url: string) => url.replace(/\/+$/, "");
 
+const normalizeSoraModel = (model: string) => {
+  const trimmed = (model || "").trim();
+  if (!trimmed) return trimmed;
+  if (trimmed === "sora-2-hd" || trimmed === "sora2") return "sora-2";
+  return trimmed;
+};
+
 const ensureVideoConfig = (
   clientSettings: ClientSettings,
   provider: ProviderId,
@@ -406,7 +413,11 @@ export const createVideoJob = async (
   clientSettings: ClientSettings,
 ) => {
   const provider = settings.provider;
-  const model = settings.videoModel || VIDEO_MODELS[provider];
+  const rawModel = settings.videoModel || VIDEO_MODELS[provider];
+  const model =
+    provider === "sora" && typeof rawModel === "string"
+      ? normalizeSoraModel(rawModel)
+      : rawModel;
   if (!model) {
     throw new Error("当前模型不支持视频生成功能。");
   }
