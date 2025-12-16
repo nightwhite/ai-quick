@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       next === "veo"
         ? VEO_MODELS[0].key
         : next === "sora"
-          ? "sora2"
+          ? "sora-2-hd"
           : settings.videoModel;
     setSettings({
       ...settings,

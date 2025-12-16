@@ -13,6 +13,16 @@ const DEFAULT_GEMINI_BASE =
 const DEFAULT_GEMINI_KEY =
   (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || "";
 
+const normalizeGeminiBaseUrl = (baseUrl: string) => {
+  const trimmed = trimBaseUrl(baseUrl).trim();
+  if (!trimmed) return trimmed;
+  // 允许用户传入 https://host 或 https://host/，这里自动补齐 v1beta。
+  if (/\/v1beta(\/|$)/.test(trimmed) || /\/v1(\/|$)/.test(trimmed)) {
+    return trimmed;
+  }
+  return `${trimmed}/v1beta`;
+};
+
 const VIDEO_MODELS: Record<ProviderId, string | undefined> = {
   nano_banana_pro: undefined,
   veo: "veo_3_1",
@@ -342,7 +352,7 @@ export const generateImageContent = async (
     shared.apiKey ||
     DEFAULT_GEMINI_KEY
   ).trim();
-  const baseUrl = trimBaseUrl(
+  const baseUrl = normalizeGeminiBaseUrl(
     providerCfg.baseUrl || shared.baseUrl || DEFAULT_GEMINI_BASE,
   );
 
