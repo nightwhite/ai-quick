@@ -16,7 +16,7 @@
 核心实现：`createVideoJob` in `api.ts`。
 ```ts
 const formData = new FormData();
-formData.append("model", model);          // Veo: veo_3_1 / veo_3_1-fast / ...；Sora: sora-2-hd / sora2
+formData.append("model", model);          // Veo: veo_3_1 / veo_3_1-fast / ...；Sora: sora-2
 formData.append("prompt", prompt);
 formData.append("seconds", clampDuration(provider, duration, model, hasReferenceImage));
 formData.append("size", size);            // e.g. 1280x720 / 720x1280
@@ -60,6 +60,7 @@ curl -X POST "$BASE/v1/videos/<job_id>/remix" \
   -d '{"prompt":"把视频里的小猫改成小狗"}'
 ```
 前端调用在 `createSoraRemixJob` 中实现，成功会返回新的 `id`，之后继续用 `getVideoJobStatus` 轮询。
+注意：Remix 仅对 Sora 2 任务（通常 id 形如 `sora-2:task_...`）可用；若你的后端返回的是其它前缀，可能会出现 404 Invalid URL。
 
 ## 快速复用
 1) 复制 `api.ts` 中与视频相关的函数：`ensureVideoConfig`、`clampDuration`、`createVideoJob`、`getVideoJobStatus`、`buildVideoPartsFromPayload`。  

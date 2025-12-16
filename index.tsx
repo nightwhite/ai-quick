@@ -306,6 +306,13 @@ const App = () => {
   };
 
   const handleSoraRemix = async (jobId: string) => {
+    if (!jobId.startsWith("sora-2:")) {
+      alert(
+        `Remix 仅支持 Sora 2 任务（id 形如 sora-2:task_...）。\n当前任务 id：${jobId}\n\n请切换到 Sora 后重新生成一次视频（确保模型为 sora-2），再进行 Remix。`,
+      );
+      return;
+    }
+
     const prompt = window.prompt("请输入 Remix 提示词", "");
     if (!prompt || !prompt.trim()) return;
 

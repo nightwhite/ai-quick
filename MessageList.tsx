@@ -134,6 +134,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             {provider === "sora" &&
               onRemix &&
               msg.jobId &&
+              msg.jobId.startsWith("sora-2:") &&
               msg.parts.some((p) => p.type === "video") && (
                 <div className="mt-3 flex justify-end">
                   <button

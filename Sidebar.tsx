@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       next === "veo"
         ? VEO_MODELS[0].key
         : next === "sora"
-          ? "sora-2-hd"
+          ? "sora-2"
           : settings.videoModel;
     setSettings({
       ...settings,
@@ -140,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ? MODEL_NAME
             : settings.provider === "veo"
               ? VEO_MODEL_NAME
-              : "sora2"}
+              : settings.videoModel || "sora-2"}
         </div>
         {!modeReady && (
           <div className="mt-3 text-xs text-red-300 bg-red-950/30 border border-red-900/40 rounded-lg p-2">
