@@ -31,8 +31,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     null,
   );
 
-  const isVeoFlModel =
-    provider === "veo" && typeof videoModel === "string" && videoModel.includes("fl");
+  const isVeoF1Model =
+    provider === "veo" && typeof videoModel === "string" && videoModel.includes("f1");
+  const allowDualVeoImages = provider === "veo";
   const hasAnyImage = Boolean(uploadImages.primary || uploadImages.secondary);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -67,10 +68,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       if (event.target?.result) {
         const targetSlot =
           slot ||
-          (isVeoFlModel
-            ? uploadImages.primary
-              ? "secondary"
-              : "primary"
+          (allowDualVeoImages
+            ? activeSlot || (uploadImages.primary ? "secondary" : "primary")
             : "primary");
         setSlotImage(targetSlot, event.target.result as string, file.type);
         setActiveSlot(targetSlot);
@@ -96,7 +95,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         const file = items[i].getAsFile();
         if (file) {
           const targetSlot =
-            isVeoFlModel
+            allowDualVeoImages
               ? activeSlot || (uploadImages.primary ? "secondary" : "primary")
               : "primary";
           processFile(file, targetSlot);
@@ -213,7 +212,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   const renderImageSection = () => {
-    if (provider === "veo" && isVeoFlModel) {
+    if (provider === "veo") {
       return renderDualSlots();
     }
     return renderSinglePreview();
@@ -226,12 +225,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         : "描述你想生成的图片...（支持粘贴图片）";
     }
     if (provider === "veo") {
-      if (isVeoFlModel) {
-        return "描述你想生成的视频场景（需上传首尾帧）...";
-      }
-      return uploadImages.primary
-        ? "描述基于该图的镜头/运动..."
-        : "描述你想生成的视频...（可粘贴参考图）";
+      return uploadImages.primary || uploadImages.secondary
+        ? "描述基于参考图的镜头/运动..."
+        : "描述你想生成的视频...（可粘贴多张参考图）";
     }
     return "描述你想生成的视频...";
   };
@@ -242,7 +238,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         {renderImageSection()}
 
         <div className="relative flex items-end gap-2">
-          {!isVeoFlModel && (
+          {provider !== "veo" && (
             <>
               <input
                 type="file"
@@ -277,7 +273,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onClick={onSend}
               disabled={
                 (!input.trim() && !hasAnyImage) ||
-                (isVeoFlModel && (!uploadImages.primary || !uploadImages.secondary)) ||
+                (isVeoF1Model && (!uploadImages.primary || !uploadImages.secondary)) ||
                 isLoading
               }
               className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors"

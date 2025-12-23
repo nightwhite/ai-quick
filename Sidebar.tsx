@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React from "react";
 import {
   Settings,
   Image as ImageIcon,
@@ -23,16 +23,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   capabilities,
   onOpenSettings,
   clientSettings,
-  uploadImages,
 }) => {
   const isImageProvider = settings.provider === "nano_banana_pro";
   const isVideoProvider =
     settings.provider === "veo" || settings.provider === "sora";
   const VEO_MODELS = [
-    { key: "veo_3_1", label: "veo_3_1", durations: [4, 6, 8] },
-    { key: "veo_3_1-fast", label: "veo_3_1-fast", durations: [4, 6, 8] },
-    { key: "veo_3_1-fl", label: "veo_3_1-fl", durations: [4, 6, 8] },
-    { key: "veo_3_1-fast-fl", label: "veo_3_1-fast-fl", durations: [4, 6, 8] },
+    { key: "veo_3_1-portrait", label: "veo_3_1-portrait（竖屏）", durations: [4, 6, 8] },
+    { key: "veo_3_1-landscape", label: "veo_3_1-landscape（横屏）", durations: [4, 6, 8] },
   ];
 
   const ORIENTATION_OPTIONS = [
@@ -40,49 +37,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { label: "竖屏 9:16", value: "720x1280", ratio: "9:16" as const },
   ];
 
-  const hasReferenceImage = useMemo(
-    () => Boolean(uploadImages.primary || uploadImages.secondary),
-    [uploadImages.primary, uploadImages.secondary],
-  );
-
-  const getDurationOptions = (provider: ProviderId, modelKey?: string) => {
-    if (provider === "sora") return [10, 15];
-
-    if (provider === "veo") {
-      // 需求：veo_3_1 与 veo_3_1-fast 在“有参考图”时强制 8s
-      if (
-        hasReferenceImage &&
-        (modelKey === "veo_3_1" || modelKey === "veo_3_1-fast")
-      )
-        return [8];
-
-      return (
-        VEO_MODELS.find((m) => m.key === (modelKey || settings.videoModel))
-          ?.durations || [4, 6, 8]
-      );
-    }
-
-    return [4, 6, 8];
-  };
+  const getDurationOptions = (provider: ProviderId, modelKey?: string) =>
+    provider === "sora"
+      ? [10, 15]
+      : VEO_MODELS.find((m) => m.key === (modelKey || settings.videoModel))
+          ?.durations || [4, 6, 8];
   const durationOptions = getDurationOptions(
     settings.provider,
     settings.videoModel,
   );
-
-  useEffect(() => {
-    // 若用户上传/清空参考图导致“允许时长”发生变化，自动把当前时长纠正为合法值
-    if (!isVideoProvider) return;
-    const allowed = getDurationOptions(settings.provider, settings.videoModel);
-    if (allowed.length === 0) return;
-    if (!allowed.includes(settings.videoDurationSeconds)) {
-      setSettings({ ...settings, videoDurationSeconds: allowed[0] });
-    }
-  }, [
-    hasReferenceImage,
-    isVideoProvider,
-    settings,
-    setSettings,
-  ]);
 
   const handleProviderChange = (next: ProviderId) => {
     const durations = getDurationOptions(next, settings.videoModel);
@@ -93,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       next === "veo"
         ? VEO_MODELS[0].key
         : next === "sora"
-          ? "sora-2"
+          ? "sora-2-hd"
           : settings.videoModel;
     setSettings({
       ...settings,
@@ -140,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ? MODEL_NAME
             : settings.provider === "veo"
               ? VEO_MODEL_NAME
-              : settings.videoModel || "sora-2"}
+              : "sora"}
         </div>
         {!modeReady && (
           <div className="mt-3 text-xs text-red-300 bg-red-950/30 border border-red-900/40 rounded-lg p-2">
@@ -251,6 +214,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 </div>
               </>
+            ) : settings.provider === "veo" ? (
+              <div>
+                <label className="block text-xs text-neutral-500 mb-1.5 uppercase tracking-wider font-semibold">
+                  Veo 模型（横/竖屏）
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {VEO_MODELS.map((model) => (
+                    <button
+                      key={model.key}
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          videoModel: model.key,
+                        })
+                      }
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        settings.videoModel === model.key
+                          ? "bg-orange-600 text-white shadow-lg shadow-orange-900/20"
+                          : "bg-neutral-800 text-neutral-400 hover:bg-neutral-750 hover:text-neutral-200"
+                      }`}
+                    >
+                      {model.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ) : (
               <>
                 <div>
@@ -279,38 +268,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     ))}
                   </div>
                 </div>
-
-                {settings.provider === "veo" && (
-                  <div>
-                    <label className="block text-xs text-neutral-500 mb-1.5 uppercase tracking-wider font-semibold">
-                      Veo 模型
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {VEO_MODELS.map((model) => (
-                        <button
-                          key={model.key}
-                          onClick={() =>
-                            setSettings({
-                              ...settings,
-                              videoModel: model.key,
-                              videoDurationSeconds: getDurationOptions(
-                                "veo",
-                                model.key,
-                              )[0],
-                            })
-                          }
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                            settings.videoModel === model.key
-                              ? "bg-orange-600 text-white shadow-lg shadow-orange-900/20"
-                              : "bg-neutral-800 text-neutral-400 hover:bg-neutral-750 hover:text-neutral-200"
-                          }`}
-                        >
-                          {model.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 <div>
                   <label className="block text-xs text-neutral-500 mb-1.5 uppercase tracking-wider font-semibold">

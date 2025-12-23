@@ -39,7 +39,6 @@ export interface MessagePart {
 export interface Message {
   id: string;
   role: "user" | "model";
-  jobId?: string;
   parts: MessagePart[];
   rawParts?: any[]; // 保存原始 API parts（含 thought_signature 等）
   timestamp: number;

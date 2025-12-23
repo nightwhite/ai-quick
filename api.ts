@@ -7,16 +7,21 @@ import type {
 } from "./types";
 
 const IMAGE_MODEL = "gemini-3-pro-image-preview";
+const IMAGE_MODEL_4K = "gemini-3-pro-image-preview-4k";
+const DEFAULT_VEO_PORTRAIT_MODEL = "veo_3_1-portrait";
+const DEFAULT_VEO_LANDSCAPE_MODEL = "veo_3_1-landscape";
 const DEFAULT_GEMINI_BASE =
   (import.meta.env.VITE_GEMINI_BASE_URL as string | undefined) ||
   "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_GEMINI_KEY =
   (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || "";
 
+const trimBaseUrl = (url: string) => url.replace(/\/+$/, "");
+
 const normalizeGeminiBaseUrl = (baseUrl: string) => {
   const trimmed = trimBaseUrl(baseUrl).trim();
   if (!trimmed) return trimmed;
-  // 允许用户传入 https://host 或 https://host/，这里自动补齐 v1beta。
+  // 允许用户传入 https://host 或 https://host/；如果未包含 v1/v1beta 则自动补齐 v1beta
   if (/\/v1beta(\/|$)/.test(trimmed) || /\/v1(\/|$)/.test(trimmed)) {
     return trimmed;
   }
@@ -25,14 +30,13 @@ const normalizeGeminiBaseUrl = (baseUrl: string) => {
 
 const VIDEO_MODELS: Record<ProviderId, string | undefined> = {
   nano_banana_pro: undefined,
-  veo: "veo_3_1",
-  sora: "sora-2",
+  veo: DEFAULT_VEO_PORTRAIT_MODEL,
+  sora: "sora-2-hd",
 };
 
 const VIDEO_DURATION_OPTIONS: Record<ProviderId, number[] | undefined> = {
   nano_banana_pro: undefined,
-  // 注意：Veo 的时长由具体 model 决定（部分 model 固定时长）
-  veo: undefined,
+  veo: [2, 4, 6, 8, 10, 15],
   sora: [10, 15],
 };
 
@@ -44,15 +48,6 @@ const VIDEO_PENDING_STATES = [
   "generating",
   "in_progress",
 ];
-
-const trimBaseUrl = (url: string) => url.replace(/\/+$/, "");
-
-const normalizeSoraModel = (model: string) => {
-  const trimmed = (model || "").trim();
-  if (!trimmed) return trimmed;
-  if (trimmed === "sora-2-hd" || trimmed === "sora2") return "sora-2";
-  return trimmed;
-};
 
 const ensureVideoConfig = (
   clientSettings: ClientSettings,
@@ -77,31 +72,8 @@ const ensureVideoConfig = (
   return { baseUrl, apiKey };
 };
 
-const getAllowedVideoDurations = (
-  provider: ProviderId,
-  model?: string,
-  hasReferenceImage?: boolean,
-): number[] | undefined => {
-  if (provider === "veo") {
-    // 需求：veo_3_1 与 veo_3_1-fast 仅在有参考图时强制 8s
-    if (
-      hasReferenceImage &&
-      (model === "veo_3_1" || model === "veo_3_1-fast")
-    )
-      return [8];
-    // 其它 Veo 模型暂按原有范围
-    return [2, 4, 6, 8, 10, 15];
-  }
-  return VIDEO_DURATION_OPTIONS[provider];
-};
-
-const clampDuration = (
-  provider: ProviderId,
-  seconds: number | string,
-  model?: string,
-  hasReferenceImage?: boolean,
-) => {
-  const allowed = getAllowedVideoDurations(provider, model, hasReferenceImage);
+const clampDuration = (provider: ProviderId, seconds: number | string) => {
+  const allowed = VIDEO_DURATION_OPTIONS[provider];
   if (!allowed) return String(seconds || 10);
   const numeric = Number(seconds) || allowed[0];
   return String(allowed.includes(numeric) ? numeric : allowed[0]);
@@ -154,6 +126,105 @@ const findRecentImagePart = (messages: Message[]): MessagePart | null => {
     if (part) return part;
   }
   return null;
+};
+
+const parseVeoTextToParts = (fullText: string): MessagePart[] => {
+  const parts: MessagePart[] = [];
+  const urlMatch = fullText.match(/https?:\/\/[^\s)\]]+/);
+  if (urlMatch) {
+    parts.push({
+      type: "video",
+      source: "url",
+      content: urlMatch[0],
+      mimeType: "video/mp4",
+    });
+  }
+
+  const cleanedText = fullText.trim();
+  if (cleanedText) {
+    parts.push({ type: "text", content: cleanedText });
+  }
+
+  if (parts.length === 0) {
+    parts.push({ type: "text", content: "任务完成，但未解析到内容。" });
+  }
+
+  return parts;
+};
+
+const pickVeoModel = (settings: AppSettings) => {
+  if (settings.videoModel) return settings.videoModel;
+  return settings.videoAspectRatio === "9:16"
+    ? DEFAULT_VEO_PORTRAIT_MODEL
+    : DEFAULT_VEO_LANDSCAPE_MODEL;
+};
+
+const buildVeoUserContent = (currentParts: MessagePart[]) => {
+  const content: any[] = [];
+  const textParts = currentParts.filter((p) => p.type === "text");
+  const imageParts = currentParts.filter((p) => p.type === "image");
+
+  if (textParts.length > 0) {
+    for (const part of textParts) {
+      content.push({ type: "text", text: part.content });
+    }
+  }
+
+  for (const part of imageParts) {
+    const url = part.content.includes("base64,")
+      ? part.content
+      : `data:${part.mimeType || "image/png"};base64,${part.content}`;
+    content.push({
+      type: "image_url",
+      image_url: { url },
+    });
+  }
+
+  if (content.length === 0) {
+    content.push({ type: "text", text: "请根据上下文生成视频。" });
+  }
+
+  return content;
+};
+
+const readVeoStream = async (
+  res: Response,
+  onDelta?: (text: string) => void,
+) => {
+  if (!res.body) {
+    throw new Error("Veo 接口未返回可读取的流。");
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line.startsWith("data:")) continue;
+      const dataStr = line.replace(/^data:\s*/, "");
+      if (dataStr === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(dataStr);
+        const delta = parsed?.choices?.[0]?.delta;
+        if (delta?.content) {
+          content += delta.content;
+          onDelta?.(content);
+        }
+      } catch {
+        // ignore malformed chunks
+      }
+    }
+  }
+
+  return content;
 };
 
 const buildHistoryContents = (
@@ -274,10 +345,27 @@ const extractVideoBase64 = (payload: any) => {
 const buildVideoPartsFromPayload = (payload: any): MessagePart[] => {
   const status = (payload?.status || "").toString().toLowerCase();
   if (status && ["failed", "error", "cancelled"].includes(status)) {
+    const err = payload?.error;
+    const errMessage =
+      typeof err === "string"
+        ? err
+        : typeof err?.message === "string"
+          ? err.message
+          : undefined;
+    const errCode =
+      typeof err === "object" && typeof err?.code === "string"
+        ? err.code
+        : undefined;
+    const fallbackMessage =
+      typeof payload?.message === "string" && payload.message
+        ? payload.message
+        : status;
+    const display =
+      errMessage && errCode ? `${errMessage}（${errCode}）` : errMessage || errCode || fallbackMessage;
     return [
       {
         type: "text",
-        content: `视频生成失败：${payload?.error || payload?.message || status}`,
+        content: `视频生成失败：${display}`,
       },
     ];
   }
@@ -322,7 +410,10 @@ export interface GenerateImageResult {
 }
 
 export interface VideoJobCreated {
-  jobId: string;
+  jobId?: string;
+  done?: boolean;
+  parts?: MessagePart[];
+  raw?: any;
 }
 
 export interface VideoJobStatus {
@@ -333,10 +424,6 @@ export interface VideoJobStatus {
   raw?: any;
   status?: string;
   progress?: number;
-}
-
-export interface RemixJobCreated {
-  jobId: string;
 }
 
 export const getHealth = async () => {
@@ -386,7 +473,9 @@ export const generateImageContent = async (
   };
 
   const response = await fetch(
-    `${baseUrl}/models/${IMAGE_MODEL}:generateContent`,
+    `${baseUrl}/models/${
+      settings.resolution === "4K" ? IMAGE_MODEL_4K : IMAGE_MODEL
+    }:generateContent`,
     {
       method: "POST",
       headers: {
@@ -411,13 +500,45 @@ export const createVideoJob = async (
   currentParts: MessagePart[],
   settings: AppSettings,
   clientSettings: ClientSettings,
+  onStreamText?: (text: string) => void,
 ) => {
   const provider = settings.provider;
-  const rawModel = settings.videoModel || VIDEO_MODELS[provider];
-  const model =
-    provider === "sora" && typeof rawModel === "string"
-      ? normalizeSoraModel(rawModel)
-      : rawModel;
+  if (provider === "veo") {
+    const { baseUrl, apiKey } = ensureVideoConfig(clientSettings, provider);
+    const model = pickVeoModel(settings);
+    const userContent = buildVeoUserContent(currentParts);
+
+    const messages: any[] = [{ role: "user", content: userContent }];
+
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        stream: true,
+        messages,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`创建视频任务失败：${res.status} - ${text}`);
+    }
+
+    const streamedText = await readVeoStream(res, onStreamText);
+    const parts = parseVeoTextToParts(streamedText);
+    return {
+      jobId: undefined,
+      done: true,
+      parts,
+      raw: streamedText,
+    };
+  }
+
+  const model = settings.videoModel || VIDEO_MODELS[provider];
   if (!model) {
     throw new Error("当前模型不支持视频生成功能。");
   }
@@ -427,19 +548,13 @@ export const createVideoJob = async (
   const prompt =
     currentParts.find((p) => p.type === "text")?.content?.trim() || "";
   const imageParts = currentParts.filter((p) => p.type === "image");
-  const hasReferenceImage = imageParts.length > 0;
 
   const formData = new FormData();
   formData.append("model", model);
   formData.append("prompt", prompt);
   formData.append(
     "seconds",
-    clampDuration(
-      provider,
-      settings.videoDurationSeconds,
-      model,
-      hasReferenceImage,
-    ),
+    clampDuration(provider, settings.videoDurationSeconds),
   );
   const size =
     settings.videoSize ||
@@ -487,45 +602,19 @@ export const createVideoJob = async (
   return { jobId: data.id };
 };
 
-export const createSoraRemixJob = async (
-  jobId: string,
-  prompt: string,
-  clientSettings: ClientSettings,
-): Promise<RemixJobCreated> => {
-  const { baseUrl, apiKey } = ensureVideoConfig(clientSettings, "sora");
-  if (!prompt.trim()) {
-    throw new Error("请填写 Remix 提示词。");
-  }
-
-  const res = await fetch(
-    `${baseUrl}/v1/videos/${encodeURIComponent(jobId)}/remix`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ prompt }),
-    },
-  );
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`创建 Remix 任务失败：${res.status} - ${text}`);
-  }
-
-  const data = await res.json().catch(() => ({}));
-  if (!data?.id) {
-    throw new Error("Remix 任务创建成功，但未返回 id。");
-  }
-  return { jobId: data.id };
-};
-
 export const getVideoJobStatus = async (
   jobId: string,
   provider: ProviderId,
   clientSettings: ClientSettings,
 ) => {
+  if (provider === "veo") {
+    return {
+      jobId,
+      done: true,
+      error: "Veo 新接口为即时返回，无需轮询。",
+    };
+  }
+
   const { baseUrl, apiKey } = ensureVideoConfig(clientSettings, provider);
 
   const res = await fetch(`${baseUrl}/v1/videos/${encodeURIComponent(jobId)}`, {

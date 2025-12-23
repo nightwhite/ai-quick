@@ -1,12 +1,13 @@
-<div align="center">
-<img width="1200" height="475" alt="项目横幅" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# AI Quick：生图 / 生成视频示例
 
-# 本地运行与部署
+这是一个纯前端的生图 + 生成视频示例项目：浏览器直接调用远端 Gemini（图像）和 Veo / Sora（视频）接口，可在本地快速演示“从提示词到图片、从提示词到视频、基于参考图生成视频/首尾帧视频、Sora Remix”等能力。
 
 本仓库包含本地运行所需的一切。
 
-在 AI Studio 查看应用：https://ai.studio/apps/drive/1gC6YketJaa-SZFc3WA3Xg7y2Ekd9zPmk
+## 功能概览
+- 图片：基于 Gemini 生成与连续修图（可复用上一张图）。
+- 视频：Veo / Sora 直接由前端发起任务并轮询结果，支持参考图，Veo fl 模型需上传首尾帧；Veo 在 `veo_3_1` / `veo_3_1-fast` 加参考图时自动固定 8 秒。
+- Remix：Sora 任务（id 以 `sora-2:` 开头）可在消息中点击 Remix 按钮，用新提示词二次生成。
 
 ## 本地运行（网站）
 
@@ -41,5 +42,6 @@
 
 - 运行 `pnpm dev` → 打开 `http://localhost:3000`，在「设置」中填入远端 API 的 Base URL / Key。
 - 切到「图片」：输入提示词即可调用 Gemini REST，支持连续修图（不上传新图时会复用最近一张）。
-- 切到「Veo / Sora」：输入提示词即可创建视频任务，前端会轮询 `/v1/videos/:id` 并展示 URL/base64 结果。
+- 切到「Veo / Sora」：输入提示词即可创建视频任务，前端会轮询 `/v1/videos/:id` 并展示 URL/base64 结果；Veo 在上传参考图且模型为 `veo_3_1`/`veo_3_1-fast` 时会自动固定 8 秒；带 `fl` 的 Veo 模型需上传首尾帧两张图。
+- Sora 任务（id 形如 `sora-2:...`）支持 Remix，点消息里的 Remix 按钮输入新提示词即可基于原视频再生成一版。
 - 想在其他项目复用 Veo/Sora 调用方式，可参考 `docs/veo-sora.md`。

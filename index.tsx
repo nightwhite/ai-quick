@@ -16,7 +16,6 @@ import {
   generateImageContent,
   getHealth,
   getVideoJobStatus,
-  createSoraRemixJob,
 } from "./api";
 import { SettingsModal } from "./SettingsModal";
 import {
@@ -62,14 +61,11 @@ const App = () => {
     provider: "nano_banana_pro",
     aspectRatio: "16:9",
     resolution: "1K",
-    videoAspectRatio: "16:9",
+    videoAspectRatio: "9:16",
     videoDurationSeconds: 10,
-    videoSize: "1280x720",
-    videoModel: "veo_3_1",
+    videoSize: "720x1280",
+    videoModel: "veo_3_1-portrait",
   });
-  const [remixLoadingJobId, setRemixLoadingJobId] = useState<string | null>(
-    null,
-  );
 
   useEffect(() => {
     (async () => {
@@ -202,17 +198,70 @@ const App = () => {
         processResult(result);
       } else {
         setProviderLoading(provider, true);
-        const { jobId } = await createVideoJob(
+
+        // 对 VEO 给一个流式占位提示
+        let streamingMsgId: string | null = null;
+        if (provider === "veo") {
+          streamingMsgId = `${Date.now()}-veo-streaming`;
+          appendMessage(provider, {
+            id: streamingMsgId,
+            role: "model",
+            parts: [
+              {
+                type: "text",
+                content: "Veo 正在流式生成中，请稍候…",
+              },
+            ],
+            timestamp: Date.now(),
+          });
+        }
+
+        const job = await createVideoJob(
           [],
           userMsg.parts,
           settings,
           clientSettings,
+          (text) => {
+            if (!streamingMsgId) return;
+            appendMessage(provider, (prev) =>
+              prev.map((m) =>
+                m.id === streamingMsgId
+                  ? {
+                      ...m,
+                      parts: [{ type: "text", content: text || "..." }],
+                      timestamp: Date.now(),
+                    }
+                  : m,
+              ),
+            );
+          },
         );
+
+        if (job.parts && job.done) {
+          // 移除占位提示
+          if (streamingMsgId) {
+            appendMessage(provider, (prev) =>
+              prev.filter((m) => m.id !== streamingMsgId),
+            );
+          }
+          const modelMsg: Message = {
+            id: `${Date.now()}-veo-result`,
+            role: "model",
+            parts: job.parts,
+            timestamp: Date.now(),
+          };
+          appendMessage(provider, modelMsg);
+          return;
+        }
+
+        const jobId = job.jobId;
+        if (!jobId) {
+          throw new Error("视频任务创建失败：未返回任务 ID。");
+        }
 
         const statusMsg: Message = {
           id: `${jobId}-status`,
           role: "model",
-          jobId,
           parts: [
             {
               type: "text",
@@ -237,7 +286,6 @@ const App = () => {
           const modelMsg: Message = {
             id: `${jobId}-result`,
             role: "model",
-            jobId,
             parts: status.parts || [
               { type: "text", content: "（未返回视频）" },
             ],
@@ -252,7 +300,6 @@ const App = () => {
           const timeoutMsg: Message = {
             id: `${jobId}-timeout`,
             role: "model",
-            jobId,
             parts: [
               {
                 type: "text",
@@ -305,103 +352,6 @@ const App = () => {
     }
   };
 
-  const handleSoraRemix = async (jobId: string) => {
-    if (!jobId.startsWith("sora-2:")) {
-      alert(
-        `Remix 仅支持 Sora 2 任务（id 形如 sora-2:task_...）。\n当前任务 id：${jobId}\n\n请切换到 Sora 后重新生成一次视频（确保模型为 sora-2），再进行 Remix。`,
-      );
-      return;
-    }
-
-    const prompt = window.prompt("请输入 Remix 提示词", "");
-    if (!prompt || !prompt.trim()) return;
-
-    const userMsg: Message = {
-      id: `${Date.now()}-remix-user`,
-      role: "user",
-      jobId,
-      parts: [{ type: "text", content: `Remix：${prompt}` }],
-      timestamp: Date.now(),
-    };
-    appendMessage("sora", userMsg);
-
-    setRemixLoadingJobId(jobId);
-    setProviderLoading("sora", true);
-
-    try {
-      const { jobId: newJobId } = await createSoraRemixJob(
-        jobId,
-        prompt,
-        clientSettings,
-      );
-
-      const statusMsg: Message = {
-        id: `${newJobId}-status`,
-        role: "model",
-        jobId: newJobId,
-        parts: [
-          {
-            type: "text",
-            content: `已创建 Remix 任务：\`${newJobId}\`，基于原始视频 \`${jobId}\`。正在生成中...`,
-          },
-        ],
-        timestamp: Date.now(),
-      };
-      appendMessage("sora", statusMsg);
-
-      let finished = false;
-      for (let attempt = 0; attempt < 120; attempt++) {
-        await new Promise((r) => setTimeout(r, 5000));
-        const status = await getVideoJobStatus(
-          newJobId,
-          "sora",
-          clientSettings,
-        );
-        if (!status.done) continue;
-
-        const modelMsg: Message = {
-          id: `${newJobId}-result`,
-          role: "model",
-          jobId: newJobId,
-          parts: status.parts || [{ type: "text", content: "（未返回视频）" }],
-          timestamp: Date.now(),
-        };
-        appendMessage("sora", modelMsg);
-        finished = true;
-        break;
-      }
-
-      if (!finished) {
-        const timeoutMsg: Message = {
-          id: `${newJobId}-timeout`,
-          role: "model",
-          jobId: newJobId,
-          parts: [
-            {
-              type: "text",
-              content: `Remix 任务仍在生成中。稍后可用 jobId 查询：\`${newJobId}\`。`,
-            },
-          ],
-          timestamp: Date.now(),
-        };
-        appendMessage("sora", timeoutMsg);
-      }
-    } catch (error) {
-      const errorMessage = (error as Error).message || JSON.stringify(error);
-      const displayMsg: Message = {
-        id: `${Date.now()}-remix-error`,
-        role: "model",
-        jobId,
-        parts: [{ type: "text", content: `**Remix 错误：** ${errorMessage}` }],
-        timestamp: Date.now(),
-      };
-      appendMessage("sora", displayMsg);
-    } finally {
-      setRemixLoadingJobId(null);
-      setProviderLoading("sora", false);
-    }
-  };
-
   const isModeReady =
     settings.provider === "nano_banana_pro"
       ? capabilities?.image !== false ||
@@ -426,17 +376,10 @@ const App = () => {
         capabilities={capabilities}
         onOpenSettings={() => setIsSettingsOpen(true)}
         clientSettings={clientSettings}
-        uploadImages={uploadImages}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <MessageList
-          messages={currentMessages}
-          isLoading={currentLoading}
-          provider={currentProvider}
-          onRemix={settings.provider === "sora" ? handleSoraRemix : undefined}
-          remixingJobId={remixLoadingJobId}
-        />
+        <MessageList messages={currentMessages} isLoading={currentLoading} />
         <ChatInput
           input={input}
           setInput={setInput}
