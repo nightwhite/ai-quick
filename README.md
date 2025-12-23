@@ -8,6 +8,8 @@
 - 图片：基于 Gemini 生成与连续修图（可复用上一张图）。
 - 视频：Veo / Sora 直接由前端发起任务并轮询结果，支持参考图，Veo fl 模型需上传首尾帧；Veo 在 `veo_3_1` / `veo_3_1-fast` 加参考图时自动固定 8 秒。
 - Remix：Sora 任务（id 以 `sora-2:` 开头）可在消息中点击 Remix 按钮，用新提示词二次生成。
+- 兼容中转站：已验证 `https://api.gbro.site` 可同时代理 Gemini / Veo / Sora（需在「设置」里填入对应 Base URL 与 Token）。
+- API 细节：见 `docs/api-usage.md` 与 `docs/veo-sora.md`。
 
 ## 本地运行（网站）
 
@@ -36,7 +38,6 @@
 
 - 项目已完全前端化：浏览器会直接访问 Gemini/Veo/Sora 等远端 API，请确保这些 API 开放了 CORS，并且你了解把 Key 暴露在前端的风险。
 - 「设置」面板会把每个模型的 Base URL / Key 保存到 `localStorage`，便于日常切换；如果要彻底移除本地记录，可点击设置里的「重置」。
-- （可选）你仍可通过 `.env` 为前端提供默认的 `VITE_GEMINI_API_KEY`/`VITE_GEMINI_BASE_URL`，用于无人值守或演示环境。
 
 ## 快速验收清单
 
