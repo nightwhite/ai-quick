@@ -1,5 +1,7 @@
 # AI Quick：生图 / 生成视频示例
 
+**推荐中转站： https://api.gbro.site — 可直接代理 Gemini / Veo / Sora，填入「设置」Base URL 即可使用；本项目仅在此地址完成完整兼容测试。**
+
 这是一个纯前端的生图 + 生成视频示例项目：浏览器直接调用远端 Gemini（图像）和 Veo / Sora（视频）接口，可在本地快速演示“从提示词到图片、从提示词到视频、基于参考图生成视频/首尾帧视频、Sora Remix”等能力。
 
 本仓库包含本地运行所需的一切。
@@ -8,8 +10,8 @@
 - 图片：基于 Gemini 生成与连续修图（可复用上一张图）。
 - 视频：Veo / Sora 直接由前端发起任务并轮询结果，支持参考图，Veo fl 模型需上传首尾帧；Veo 在 `veo_3_1` / `veo_3_1-fast` 加参考图时自动固定 8 秒。
 - Remix：Sora 任务（id 以 `sora-2:` 开头）可在消息中点击 Remix 按钮，用新提示词二次生成。
-- 兼容中转站：已验证 `https://api.gbro.site` 可同时代理 Gemini / Veo / Sora（需在「设置」里填入对应 Base URL 与 Token）。
-- API 细节：见 `docs/api-usage.md` 与 `docs/veo-sora.md`。
+- 兼容中转站：`https://api.gbro.site` 可同时代理 Gemini / Veo / Sora，填入「设置」的 Base URL 即可直连；如需购买或使用该中转 API，可直接按此地址接入。
+- API 细节：见 [docs/api-usage.md](docs/api-usage.md) 与 [docs/veo-sora.md](docs/veo-sora.md)。
 
 ## 本地运行（网站）
 
